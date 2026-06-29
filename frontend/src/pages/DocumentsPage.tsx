@@ -95,15 +95,16 @@ export default function DocumentsPage() {
           </select>
           <label className="btn-primary upload-btn">
             <Upload size={18} /> {t('upload_document')}
+
             <input type="file" hidden onChange={handleUpload} accept="image/*,.pdf,.txt" />
           </label>
         </div>
       </header>
 
       <div className="filter-bar">
-        <input className="search-input" placeholder="Search documents..." value={search} onChange={(e) => setSearch(e.target.value)} />
+        <input className="search-input" placeholder={t('search_documents')} value={search} onChange={(e) => setSearch(e.target.value)} />
         <select value={filterType} onChange={(e) => setFilterType(e.target.value)}>
-          <option value="">All types</option>
+          <option value="">{t('all_types')}</option>
           {DOC_TYPES.map((dt) => <option key={dt} value={dt}>{dt.replace(/_/g, ' ')}</option>)}
         </select>
       </div>
@@ -111,7 +112,7 @@ export default function DocumentsPage() {
       <div className="table-container">
         <table>
           <thead>
-            <tr><th>File</th><th>Type</th><th>Company</th><th>Product</th><th>Cost</th><th>Confidence</th><th>Status</th><th></th></tr>
+            <tr><th>{t('file')}</th><th>{t('type')}</th><th>{t('company')}</th><th>{t('product')}</th><th>{t('cost')}</th><th>{t('confidence')}</th><th>{t('status')}</th><th></th></tr>
           </thead>
           <tbody>
             {docs.map((doc) => (
@@ -125,9 +126,9 @@ export default function DocumentsPage() {
                 <td>
                   {doc.needs_clarification ? (
                     <button className="alert-badge warn btn-link" onClick={() => { setClarifyDoc(doc); setClarifyForm({ company_name: doc.company_name || '', product_name: doc.product_name || '', cost: doc.cost ? String(doc.cost) : '', invoice_number: doc.invoice_number || '', supplier_name: doc.supplier_name || '' }) }}>
-                      <AlertCircle size={14} /> Review
+                      <AlertCircle size={14} /> {t('review')}
                     </button>
-                  ) : 'Verified'}
+                  ) : t('verified')}
                 </td>
                 <td>
                   <button className="icon-btn-sm" onClick={() => handleDownload(doc.id, doc.original_filename)}><Download size={14} /></button>
@@ -141,13 +142,13 @@ export default function DocumentsPage() {
       {clarifyDoc && (
         <div className="modal-overlay">
           <div className="modal">
-            <h3><AlertCircle size={20} /> Clarification Required</h3>
-            <p>OCR confidence was below 90%. Please verify or correct the extracted fields.</p>
-            <div className="form-group"><label>Company</label><input value={clarifyForm.company_name} onChange={(e) => setClarifyForm({ ...clarifyForm, company_name: e.target.value })} /></div>
-            <div className="form-group"><label>Product</label><input value={clarifyForm.product_name} onChange={(e) => setClarifyForm({ ...clarifyForm, product_name: e.target.value })} /></div>
-            <div className="form-group"><label>Cost (₹)</label><input type="number" value={clarifyForm.cost} onChange={(e) => setClarifyForm({ ...clarifyForm, cost: e.target.value })} /></div>
-            <div className="form-group"><label>Invoice #</label><input value={clarifyForm.invoice_number} onChange={(e) => setClarifyForm({ ...clarifyForm, invoice_number: e.target.value })} /></div>
-            <div className="form-group"><label>Supplier</label><input value={clarifyForm.supplier_name} onChange={(e) => setClarifyForm({ ...clarifyForm, supplier_name: e.target.value })} /></div>
+            <h3><AlertCircle size={20} /> {t('clarification_required')}</h3>
+            <p>{t('clarification_desc')}</p>
+            <div className="form-group"><label>{t('company')}</label><input value={clarifyForm.company_name} onChange={(e) => setClarifyForm({ ...clarifyForm, company_name: e.target.value })} /></div>
+            <div className="form-group"><label>{t('product')}</label><input value={clarifyForm.product_name} onChange={(e) => setClarifyForm({ ...clarifyForm, product_name: e.target.value })} /></div>
+            <div className="form-group"><label>{t('cost')} (₹)</label><input type="number" value={clarifyForm.cost} onChange={(e) => setClarifyForm({ ...clarifyForm, cost: e.target.value })} /></div>
+            <div className="form-group"><label>{t('invoice_number')}</label><input value={clarifyForm.invoice_number} onChange={(e) => setClarifyForm({ ...clarifyForm, invoice_number: e.target.value })} /></div>
+            <div className="form-group"><label>{t('supplier')}</label><input value={clarifyForm.supplier_name} onChange={(e) => setClarifyForm({ ...clarifyForm, supplier_name: e.target.value })} /></div>
             <div className="modal-actions">
               <button className="btn-primary" onClick={submitClarification}>{t('save')}</button>
               <button className="btn-secondary" onClick={() => setClarifyDoc(null)}>{t('cancel')}</button>

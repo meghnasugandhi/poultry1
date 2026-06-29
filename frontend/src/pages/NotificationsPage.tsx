@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import api from '../lib/api'
+import { useLanguage } from '../contexts/LanguageContext'
 
 interface Notification {
   id: number
@@ -11,6 +12,7 @@ interface Notification {
 }
 
 export default function NotificationsPage() {
+  const { t } = useLanguage()
   const [notifications, setNotifications] = useState<Notification[]>([])
 
   const load = () => api.get('/notifications/').then(({ data }) => setNotifications(data))
@@ -24,8 +26,8 @@ export default function NotificationsPage() {
   return (
     <div className="page">
       <header className="page-header">
-        <h2>Notifications & Alerts</h2>
-        <button className="btn-secondary" onClick={markAllRead}>Mark All Read</button>
+        <h2>{t('notifications_alerts')}</h2>
+        <button className="btn-secondary" onClick={markAllRead}>{t('mark_all_read')}</button>
       </header>
       <div className="notifications-list">
         {notifications.map((n) => (
@@ -38,7 +40,7 @@ export default function NotificationsPage() {
             <span className="badge">{n.type.replace(/_/g, ' ')}</span>
           </div>
         ))}
-        {notifications.length === 0 && <p className="empty-state">No notifications yet.</p>}
+        {notifications.length === 0 && <p className="empty-state">{t('no_notifications')}</p>}
       </div>
     </div>
   )

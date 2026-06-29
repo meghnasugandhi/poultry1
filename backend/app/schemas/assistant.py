@@ -24,6 +24,13 @@ class ReportRequest(BaseModel):
     export_format: ExportFormat = ExportFormat.PDF
     start_date: datetime | None = None
     end_date: datetime | None = None
+    # Optional reviewed/corrected table from the preview screen.
+    columns: list[str] | None = None
+    rows: list[list[str]] | None = None
+
+
+class ReportPreviewRequest(BaseModel):
+    report_type: ReportType
 
 
 class CalculatorRequest(BaseModel):

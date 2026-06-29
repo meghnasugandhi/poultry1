@@ -58,31 +58,31 @@ export default function FinancePage() {
   }
 
   const handleDelete = async (id: number) => {
-    if (!confirm('Delete this transaction?')) return
+    if (!confirm(t('delete_transaction_confirm'))) return
     await api.delete(`/finance/transactions/${id}`)
     load()
   }
 
-  if (!summary) return <div className="page"><p>Loading...</p></div>
+  if (!summary) return <div className="page"><p>{t('loading')}</p></div>
 
   return (
     <div className="page">
       <header className="page-header">
         <h2>{t('finance')}</h2>
-        <button className="btn-primary" onClick={() => setShowForm(!showForm)}><Plus size={18} /> Add Transaction</button>
+        <button className="btn-primary" onClick={() => setShowForm(!showForm)}><Plus size={18} /> {t('add_transaction')}</button>
       </header>
 
       <div className="cards-grid finance-summary">
-        <div className="stat-card"><p className="stat-label">Monthly Revenue</p><p className="stat-value positive">₹{summary.monthly_revenue.toLocaleString()}</p></div>
-        <div className="stat-card"><p className="stat-label">Monthly Expenses</p><p className="stat-value negative">₹{summary.monthly_expenses.toLocaleString()}</p></div>
+        <div className="stat-card"><p className="stat-label">{t('monthly_revenue')}</p><p className="stat-value positive">₹{summary.monthly_revenue.toLocaleString()}</p></div>
+        <div className="stat-card"><p className="stat-label">{t('monthly_expenses')}</p><p className="stat-value negative">₹{summary.monthly_expenses.toLocaleString()}</p></div>
         <div className="stat-card"><p className="stat-label">{t('profit_loss')}</p><p className={`stat-value ${summary.profit_loss >= 0 ? 'positive' : 'negative'}`}>₹{Math.abs(summary.profit_loss).toLocaleString()}</p></div>
       </div>
 
       {showForm && (
         <form className="chart-card inline-form expanded" onSubmit={handleAdd}>
           <select value={form.transaction_type} onChange={(e) => setForm({ ...form, transaction_type: e.target.value })}>
-            <option value="expense">Expense</option>
-            <option value="revenue">Revenue</option>
+            <option value="expense">{t('expense')}</option>
+            <option value="revenue">{t('revenue')}</option>
           </select>
           {form.transaction_type === 'expense' ? (
             <select value={form.expense_category} onChange={(e) => setForm({ ...form, expense_category: e.target.value })}>
@@ -97,35 +97,35 @@ export default function FinancePage() {
               ))}
             </select>
           )}
-          <input type="number" placeholder="Amount (₹)" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} required />
+          <input type="number" placeholder={`${t('amount')} (₹)`} value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} required />
           <input type="date" value={form.transaction_date} onChange={(e) => setForm({ ...form, transaction_date: e.target.value })} />
-          <input placeholder="Description" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
+          <input placeholder={t('description')} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
           <button type="submit" className="btn-primary">{t('save')}</button>
         </form>
       )}
 
       <div className="breakdown-grid">
         <div className="chart-card">
-          <h3>Revenue Breakdown</h3>
+          <h3>{t('revenue_breakdown')}</h3>
           {Object.entries(summary.revenue_breakdown).filter(([, v]) => v > 0).map(([k, v]) => (
             <div key={k} className="breakdown-row"><span>{k.replace(/_/g, ' ')}</span><span>₹{v.toLocaleString()}</span></div>
           ))}
-          {Object.values(summary.revenue_breakdown).every((v) => v === 0) && <p className="empty-state">No revenue yet.</p>}
+          {Object.values(summary.revenue_breakdown).every((v) => v === 0) && <p className="empty-state">{t('no_revenue')}</p>}
         </div>
         <div className="chart-card">
-          <h3>Expense Breakdown</h3>
+          <h3>{t('expense_breakdown')}</h3>
           {Object.entries(summary.expense_breakdown).filter(([, v]) => v > 0).map(([k, v]) => (
             <div key={k} className="breakdown-row"><span>{k.replace(/_/g, ' ')}</span><span>₹{v.toLocaleString()}</span></div>
           ))}
-          {Object.values(summary.expense_breakdown).every((v) => v === 0) && <p className="empty-state">No expenses yet.</p>}
+          {Object.values(summary.expense_breakdown).every((v) => v === 0) && <p className="empty-state">{t('no_expenses')}</p>}
         </div>
       </div>
 
       <div className="chart-card" style={{ marginTop: '1.5rem' }}>
-        <h3>Recent Transactions</h3>
+        <h3>{t('recent_transactions')}</h3>
         <div className="table-container">
           <table>
-            <thead><tr><th>Date</th><th>Type</th><th>Category</th><th>Amount</th><th>Description</th><th></th></tr></thead>
+            <thead><tr><th>{t('date')}</th><th>{t('type')}</th><th>{t('category')}</th><th>{t('amount')}</th><th>{t('description')}</th><th></th></tr></thead>
             <tbody>
               {transactions.map((tx) => (
                 <tr key={tx.id}>

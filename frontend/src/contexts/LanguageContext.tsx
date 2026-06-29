@@ -1,55 +1,64 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
 import api from '../lib/api'
 import { useAuth } from './AuthContext'
-
-type Labels = Record<string, string>
+import { TRANSLATIONS, type Dict, type LangCode } from '../i18n'
 
 interface LanguageContextType {
-  labels: Labels
-  language: string
+  language: LangCode
   t: (key: string) => string
+  setLanguage: (lang: LangCode) => void
   reload: () => Promise<void>
 }
 
 const LanguageContext = createContext<LanguageContextType | null>(null)
 
-const FALLBACK: Labels = {
-  dashboard: 'Dashboard',
-  inventory: 'Inventory',
-  documents: 'Documents',
-  finance: 'Finance',
-  reports: 'Reports',
-  calculator: 'Calculator',
-  assistant: 'AI Assistant',
-  notifications: 'Notifications',
-  settings: 'Settings',
-  voice: 'Voice Assistant',
+const STORAGE_KEY = 'lang'
+
+function readStoredLang(): LangCode | null {
+  const v = localStorage.getItem(STORAGE_KEY)
+  return v && v in TRANSLATIONS ? (v as LangCode) : null
 }
 
 export function LanguageProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth()
-  const [labels, setLabels] = useState<Labels>(FALLBACK)
-  const [language, setLanguage] = useState('en')
+  const [language, setLanguageState] = useState<LangCode>(readStoredLang() || 'en')
 
-  const reload = async () => {
+  // When the logged-in user's stored preference is known and no local override
+  // exists yet, adopt the server-side preferred language.
+  useEffect(() => {
     if (!user) return
-    try {
-      const { data } = await api.get('/translations/ui')
-      setLabels({ ...FALLBACK, ...data.labels })
-      setLanguage(data.language)
-    } catch {
-      setLabels(FALLBACK)
+    if (!readStoredLang() && user.preferred_language in TRANSLATIONS) {
+      setLanguageState(user.preferred_language as LangCode)
+    }
+  }, [user?.preferred_language])
+
+  useEffect(() => {
+    document.documentElement.lang = language
+  }, [language])
+
+  const setLanguage = (lang: LangCode) => {
+    setLanguageState(lang)
+    localStorage.setItem(STORAGE_KEY, lang)
+    if (localStorage.getItem('token')) {
+      api.put('/auth/settings', { preferred_language: lang }).catch(() => {})
     }
   }
 
-  useEffect(() => {
-    reload()
-  }, [user?.preferred_language])
+  const reload = async () => {
+    if (!user) return
+    if (user.preferred_language in TRANSLATIONS) {
+      setLanguageState(user.preferred_language as LangCode)
+      localStorage.setItem(STORAGE_KEY, user.preferred_language)
+    }
+  }
 
-  const t = (key: string) => labels[key] || FALLBACK[key] || key
+  const t = (key: string): string => {
+    const dict: Dict = TRANSLATIONS[language] || TRANSLATIONS.en
+    return dict[key] ?? TRANSLATIONS.en[key] ?? key
+  }
 
   return (
-    <LanguageContext.Provider value={{ labels, language, t, reload }}>
+    <LanguageContext.Provider value={{ language, t, setLanguage, reload }}>
       {children}
     </LanguageContext.Provider>
   )

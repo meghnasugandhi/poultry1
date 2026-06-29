@@ -72,7 +72,7 @@ export default function InventoryPage() {
   }
 
   const handleDelete = async (id: number) => {
-    if (!confirm('Delete this item?')) return
+    if (!confirm(t('delete_item_confirm'))) return
     await api.delete(`/inventory/${id}`)
     load()
   }
@@ -90,9 +90,9 @@ export default function InventoryPage() {
       await api.post('/inventory/voice-entry', { text })
       setVoiceText('')
       load()
-      alert('Stock added via voice command!')
+      alert(t('stock_added_voice'))
     } catch {
-      alert('Could not parse command. Try: "Add 50 kg broiler feed"')
+      alert(t('parse_command_error'))
     }
   }
 
@@ -107,20 +107,20 @@ export default function InventoryPage() {
 
       <div className="voice-entry-bar">
         <input
-          placeholder='Voice/text entry: "Add 50 kg broiler feed"'
+          placeholder={t('voice_entry_placeholder')}
           value={voiceText}
           onChange={(e) => setVoiceText(e.target.value)}
         />
         <button className="btn-secondary" onClick={startListening} disabled={listening}>
-          <Mic size={16} /> {listening ? 'Listening...' : 'Voice'}
+          <Mic size={16} /> {listening ? t('listening') : t('voice')}
         </button>
-        <button className="btn-primary" onClick={handleVoiceEntry}>Apply</button>
+        <button className="btn-primary" onClick={handleVoiceEntry}>{t('apply')}</button>
       </div>
 
       <div className="filter-bar">
         {['', 'feed', 'medicine', 'vaccine'].map((c) => (
           <button key={c} className={`filter-btn ${category === c ? 'active' : ''}`} onClick={() => setCategory(c)}>
-            {c || 'All'}
+            {c ? t(c) : t('all')}
           </button>
         ))}
       </div>
@@ -128,17 +128,17 @@ export default function InventoryPage() {
       {showForm && (
         <motion.form className="inline-form expanded" onSubmit={handleSubmit} initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
           <select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}>
-            <option value="feed">Feed</option>
-            <option value="medicine">Medicine</option>
-            <option value="vaccine">Vaccine</option>
+            <option value="feed">{t('feed')}</option>
+            <option value="medicine">{t('medicine')}</option>
+            <option value="vaccine">{t('vaccine')}</option>
           </select>
-          <input placeholder="Product name" value={form.product_name} onChange={(e) => setForm({ ...form, product_name: e.target.value })} required />
-          <input placeholder="Quantity" type="number" value={form.quantity} onChange={(e) => setForm({ ...form, quantity: e.target.value })} required />
-          <input placeholder="Unit" value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })} />
-          <input placeholder="Reorder level" type="number" value={form.reorder_level} onChange={(e) => setForm({ ...form, reorder_level: e.target.value })} />
-          <input placeholder="Expiry date" type="date" value={form.expiry_date} onChange={(e) => setForm({ ...form, expiry_date: e.target.value })} />
-          <input placeholder="Supplier" value={form.supplier_name} onChange={(e) => setForm({ ...form, supplier_name: e.target.value })} />
-          <button type="submit" className="btn-primary">{editId ? 'Update' : t('save')}</button>
+          <input placeholder={t('product_name')} value={form.product_name} onChange={(e) => setForm({ ...form, product_name: e.target.value })} required />
+          <input placeholder={t('quantity')} type="number" value={form.quantity} onChange={(e) => setForm({ ...form, quantity: e.target.value })} required />
+          <input placeholder={t('unit')} value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })} />
+          <input placeholder={t('reorder_level')} type="number" value={form.reorder_level} onChange={(e) => setForm({ ...form, reorder_level: e.target.value })} />
+          <input placeholder={t('expiry_date')} type="date" value={form.expiry_date} onChange={(e) => setForm({ ...form, expiry_date: e.target.value })} />
+          <input placeholder={t('supplier')} value={form.supplier_name} onChange={(e) => setForm({ ...form, supplier_name: e.target.value })} />
+          <button type="submit" className="btn-primary">{editId ? t('update') : t('save')}</button>
           <button type="button" className="btn-secondary" onClick={resetForm}>{t('cancel')}</button>
         </motion.form>
       )}
@@ -146,22 +146,22 @@ export default function InventoryPage() {
       <div className="table-container">
         <table>
           <thead>
-            <tr><th>Product</th><th>Category</th><th>Quantity</th><th>Status</th><th>Actions</th></tr>
+            <tr><th>{t('product')}</th><th>{t('category')}</th><th>{t('quantity')}</th><th>{t('status')}</th><th>{t('actions')}</th></tr>
           </thead>
           <tbody>
             {items.map((item) => (
               <tr key={item.id}>
                 <td>{item.product_name}</td>
-                <td><span className="badge">{item.category}</span></td>
+                <td><span className="badge">{t(item.category)}</span></td>
                 <td>{item.quantity} {item.unit}</td>
                 <td>
-                  {item.is_low_stock && <span className="alert-badge"><AlertTriangle size={14} /> Low</span>}
-                  {item.is_expiring_soon && <span className="alert-badge warn">Expiring</span>}
+                  {item.is_low_stock && <span className="alert-badge"><AlertTriangle size={14} /> {t('low')}</span>}
+                  {item.is_expiring_soon && <span className="alert-badge warn">{t('expiring')}</span>}
                 </td>
                 <td className="actions-cell">
-                  <button className="icon-btn-sm" onClick={() => handleEdit(item)} title="Edit"><Pencil size={14} /></button>
-                  <button className="icon-btn-sm" onClick={() => showHistory(item.id)} title="History"><History size={14} /></button>
-                  <button className="icon-btn-sm danger" onClick={() => handleDelete(item.id)} title="Delete"><Trash2 size={14} /></button>
+                  <button className="icon-btn-sm" onClick={() => handleEdit(item)} title={t('edit')}><Pencil size={14} /></button>
+                  <button className="icon-btn-sm" onClick={() => showHistory(item.id)} title={t('history')}><History size={14} /></button>
+                  <button className="icon-btn-sm danger" onClick={() => handleDelete(item.id)} title={t('delete')}><Trash2 size={14} /></button>
                 </td>
               </tr>
             ))}
@@ -172,15 +172,15 @@ export default function InventoryPage() {
       {historyId && (
         <div className="modal-overlay" onClick={() => setHistoryId(null)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h3>Stock History</h3>
-            {history.length === 0 ? <p>No movements recorded.</p> : (
+            <h3>{t('stock_history')}</h3>
+            {history.length === 0 ? <p>{t('no_movements')}</p> : (
               <ul className="history-list">
                 {history.map((h) => (
                   <li key={h.created_at}>{h.change_amount > 0 ? '+' : ''}{h.change_amount} — {h.reason} ({new Date(h.created_at).toLocaleString()})</li>
                 ))}
               </ul>
             )}
-            <button className="btn-secondary" onClick={() => setHistoryId(null)}>Close</button>
+            <button className="btn-secondary" onClick={() => setHistoryId(null)}>{t('close')}</button>
           </div>
         </div>
       )}
