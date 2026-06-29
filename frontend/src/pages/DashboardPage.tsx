@@ -39,10 +39,10 @@ export default function DashboardPage() {
   const cards = data ? [
     { label: t('total_birds'), value: data.total_birds.toLocaleString(), icon: Bird, color: '#4f46e5' },
     { label: t('feed_stock'), value: `${data.feed_stock} kg`, icon: Package, color: '#059669' },
-    { label: 'Medicine Stock', value: `${data.medicine_stock} units`, icon: Pill, color: '#d97706' },
-    { label: 'Vaccine Stock', value: `${data.vaccine_stock} doses`, icon: Syringe, color: '#7c3aed' },
-    { label: 'Monthly Revenue', value: `₹${data.monthly_revenue.toLocaleString()}`, icon: TrendingUp, color: '#10b981' },
-    { label: 'Monthly Expenses', value: `₹${data.monthly_expenses.toLocaleString()}`, icon: TrendingDown, color: '#ef4444' },
+    { label: t('medicine_stock'), value: `${data.medicine_stock} units`, icon: Pill, color: '#d97706' },
+    { label: t('vaccine_stock'), value: `${data.vaccine_stock} doses`, icon: Syringe, color: '#7c3aed' },
+    { label: t('monthly_revenue'), value: `₹${data.monthly_revenue.toLocaleString()}`, icon: TrendingUp, color: '#10b981' },
+    { label: t('monthly_expenses'), value: `₹${data.monthly_expenses.toLocaleString()}`, icon: TrendingDown, color: '#ef4444' },
     { label: t('profit_loss'), value: `₹${Math.abs(data.profit_loss).toLocaleString()}`, icon: Scale, color: data.profit_loss >= 0 ? '#10b981' : '#ef4444' },
   ] : []
 
@@ -51,7 +51,7 @@ export default function DashboardPage() {
       <header className="page-header">
         <div>
           <h2>{t('dashboard')}</h2>
-          <p>{t('welcome')}, {data?.owner_name || 'Farmer'}</p>
+          <p>{t('welcome')}, {data?.owner_name || t('farmer')}</p>
         </div>
       </header>
 
@@ -72,7 +72,7 @@ export default function DashboardPage() {
       {data && (
         <div className="charts-grid multi">
           <motion.div className="chart-card" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-            <h3>Revenue & Expense Trend</h3>
+            <h3>{t('revenue_expense_trend')}</h3>
             <ResponsiveContainer width="100%" height={260}>
               <AreaChart data={data.revenue_trend}>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
@@ -86,7 +86,7 @@ export default function DashboardPage() {
           </motion.div>
 
           <motion.div className="chart-card" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.1 }}>
-            <h3>Feed Consumption Trend</h3>
+            <h3>{t('feed_consumption_trend')}</h3>
             <ResponsiveContainer width="100%" height={260}>
               <LineChart data={data.feed_consumption_trend}>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
@@ -99,7 +99,7 @@ export default function DashboardPage() {
           </motion.div>
 
           <motion.div className="chart-card" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }}>
-            <h3>Inventory Trend</h3>
+            <h3>{t('inventory_trend')}</h3>
             <ResponsiveContainer width="100%" height={260}>
               <LineChart data={data.inventory_trend}>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import api from '../lib/api'
+import { useLanguage } from '../contexts/LanguageContext'
 
 interface CalcType {
   type: string
@@ -15,6 +16,7 @@ interface Result {
 }
 
 export default function CalculatorPage() {
+  const { t } = useLanguage()
   const [types, setTypes] = useState<CalcType[]>([])
   const [selected, setSelected] = useState('')
   const [inputs, setInputs] = useState<Record<string, string>>({})
@@ -41,13 +43,13 @@ export default function CalculatorPage() {
 
   return (
     <div className="page">
-      <header className="page-header"><h2>Poultry Calculator</h2></header>
+      <header className="page-header"><h2>{t('poultry_calculator')}</h2></header>
       <div className="calculator-layout">
         <div className="chart-card">
           <div className="form-group">
-            <label>Calculation</label>
+            <label>{t('calculation')}</label>
             <select value={selected} onChange={(e) => { setSelected(e.target.value); setResult(null) }}>
-              {types.map((t) => <option key={t.type} value={t.type}>{t.name}</option>)}
+              {types.map((ct) => <option key={ct.type} value={ct.type}>{ct.name}</option>)}
             </select>
           </div>
           {current?.inputs.map((key) => (
@@ -56,11 +58,11 @@ export default function CalculatorPage() {
               <input type="number" value={inputs[key] || ''} onChange={(e) => setInputs({ ...inputs, [key]: e.target.value })} />
             </div>
           ))}
-          <button className="btn-primary" onClick={calculate}>Calculate</button>
+          <button className="btn-primary" onClick={calculate}>{t('calculate')}</button>
         </div>
         {result && (
           <div className="chart-card result-card">
-            <h3>Result: {result.result}</h3>
+            <h3>{t('result')}: {result.result}</h3>
             <p className="formula">{result.formula}</p>
             <ol>{result.steps.map((s, i) => <li key={i}>{s}</li>)}</ol>
             <p className="explanation">{result.explanation}</p>

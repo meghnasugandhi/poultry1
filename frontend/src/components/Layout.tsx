@@ -1,11 +1,12 @@
 import { NavLink, Outlet } from 'react-router-dom'
 import {
   LayoutDashboard, Package, FileText, DollarSign, BarChart3, Calculator,
-  MessageSquare, Bell, Settings, LogOut, Sun, Moon, Mic,
+  MessageSquare, Bell, Settings, LogOut, Sun, Moon, Mic, Globe,
 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { useTheme } from '../contexts/ThemeContext'
 import { useLanguage } from '../contexts/LanguageContext'
+import { LANGUAGES, type LangCode } from '../i18n'
 
 const navKeys = [
   { to: '/', icon: LayoutDashboard, key: 'dashboard' },
@@ -22,15 +23,29 @@ const navKeys = [
 export default function Layout() {
   const { user, logout } = useAuth()
   const { theme, toggleTheme } = useTheme()
-  const { t } = useLanguage()
+  const { t, language, setLanguage } = useLanguage()
 
   return (
     <div className="layout">
       <aside className="sidebar">
         <div className="sidebar-header">
-          <h1>Poultry ERP</h1>
+          <h1>{t('app_name')}</h1>
           <p>{user?.farm_name}</p>
         </div>
+
+        <div className="lang-switcher" title={t('language')}>
+          <Globe size={16} />
+          <select
+            aria-label={t('language')}
+            value={language}
+            onChange={(e) => setLanguage(e.target.value as LangCode)}
+          >
+            {LANGUAGES.map((l) => (
+              <option key={l.code} value={l.code}>{l.native}</option>
+            ))}
+          </select>
+        </div>
+
         <nav className="sidebar-nav">
           {navKeys.map(({ to, icon: Icon, key }) => (
             <NavLink key={to} to={to} end={to === '/'} className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
@@ -40,7 +55,7 @@ export default function Layout() {
           ))}
         </nav>
         <div className="sidebar-footer">
-          <button onClick={toggleTheme} className="icon-btn" title="Toggle theme">
+          <button onClick={toggleTheme} className="icon-btn" title={t('toggle_theme')}>
             {theme === 'light' ? <Moon size={20} /> : <Sun size={20} />}
           </button>
           <NavLink to="/voice" className="icon-btn" title={t('voice')}>

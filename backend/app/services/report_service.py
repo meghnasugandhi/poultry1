@@ -1,6 +1,6 @@
 import os
 import uuid
-from datetime import date, datetime
+from datetime import datetime
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -85,6 +85,24 @@ async def _fetch_report_rows(
     return rows
 
 
+async def build_report_preview(
+    db: AsyncSession, user: User, report_type: ReportType
+) -> dict:
+    """Return structured report data for on-screen review before download."""
+    rows = await _fetch_report_rows(db, user, report_type)
+    columns = rows[0] if rows else []
+    data = rows[1:] if len(rows) > 1 else []
+    return {
+        "report_type": report_type.value,
+        "title": f"{report_type.value.replace('_', ' ').title()} Report",
+        "farm_name": user.farm_name,
+        "owner_name": user.owner_name,
+        "generated": datetime.now().strftime("%Y-%m-%d %H:%M"),
+        "columns": columns,
+        "rows": data,
+    }
+
+
 async def generate_report(
     user: User,
     report_type: ReportType,
@@ -92,11 +110,13 @@ async def generate_report(
     db: AsyncSession,
     start_date: datetime | None = None,
     end_date: datetime | None = None,
+    rows: list[list[str]] | None = None,
 ) -> str:
     os.makedirs("reports", exist_ok=True)
     ext = "pdf" if export_format == ExportFormat.PDF else "xlsx"
     filename = f"reports/{report_type.value}_{uuid.uuid4().hex[:8]}.{ext}"
-    rows = await _fetch_report_rows(db, user, report_type)
+    if rows is None:
+        rows = await _fetch_report_rows(db, user, report_type)
     title = report_type.value.replace("_", " ").title()
     generated = datetime.now().strftime("%Y-%m-%d %H:%M")
 
