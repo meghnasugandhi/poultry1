@@ -24,6 +24,16 @@ const FALLBACK: Labels = {
   notifications: 'Notifications',
   settings: 'Settings',
   voice: 'Voice Assistant',
+  save: 'Save',
+  logout: 'Logout',
+  welcome: 'Welcome',
+  total_birds: 'Total Birds',
+  feed_stock: 'Feed Stock',
+  profit_loss: 'Profit / Loss',
+  search: 'Search',
+  new_chat: 'New Chat',
+  upload: 'Upload',
+  suggested_transactions: 'Suggested Transactions',
 }
 
 export function LanguageProvider({ children }: { children: ReactNode }) {

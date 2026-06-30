@@ -39,3 +39,7 @@ class Document(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     user: Mapped["User"] = relationship(back_populates="documents")
+
+    @property
+    def is_confused(self) -> bool:
+        return self.needs_clarification

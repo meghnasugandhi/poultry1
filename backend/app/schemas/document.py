@@ -29,6 +29,8 @@ class DocumentResponse(BaseModel):
     supplier_name: str | None
     ocr_confidence: float | None
     needs_clarification: bool
+    raw_ocr_text: str | None
+    is_confused: bool = False
     created_at: datetime
 
     model_config = {"from_attributes": True}

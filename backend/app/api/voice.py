@@ -72,7 +72,7 @@ async def parse_voice_command(
     result = {"action": None, "parsed": {}}
 
     add_match = re.search(
-        r"add\s+(\d+(?:\.\d+)?)\s*(kg|bags|units|doses)?\s+(?:of\s+)?(.+)",
+        r"(?:add|receive|received|purchase|purchased|got|bought|stocked)\s+(\d+(?:\.\d+)?)\s*(kg|g|grams|bags|units|doses|ml|l)?\s+(?:of\s+)?(.+)",
         text,
     )
     if add_match:
@@ -82,11 +82,32 @@ async def parse_voice_command(
             if cat in product.lower():
                 category = cat
                 product = re.sub(rf"\b{cat}\b", "", product, flags=re.I).strip().title() or product
-        result = {
+        return {
             "action": "add_stock",
             "parsed": {
                 "quantity": float(add_match.group(1)),
                 "unit": add_match.group(2) or "kg",
+                "product_name": product,
+                "category": category,
+            },
+        }
+
+    remove_match = re.search(
+        r"(?:remove|use|used|consume|consumed|deduct|delete|discard|reduce|take)\s+(\d+(?:\.\d+)?)\s*(kg|g|grams|bags|units|doses|ml|l)?\s+(?:of\s+)?(.+)",
+        text,
+    )
+    if remove_match:
+        product = remove_match.group(3).strip().title()
+        category = "feed"
+        for cat in ("feed", "medicine", "vaccine"):
+            if cat in product.lower():
+                category = cat
+                product = re.sub(rf"\b{cat}\b", "", product, flags=re.I).strip().title() or product
+        return {
+            "action": "remove_stock",
+            "parsed": {
+                "quantity": float(remove_match.group(1)),
+                "unit": remove_match.group(2) or "kg",
                 "product_name": product,
                 "category": category,
             },

@@ -34,6 +34,7 @@ export default function SettingsPage() {
   })
   const [passwordForm, setPasswordForm] = useState({ current: '', new: '' })
   const [loginHistory, setLoginHistory] = useState<LoginEntry[]>([])
+  const [ocrStatus, setOcrStatus] = useState<any>(null)
   const [message, setMessage] = useState('')
 
   useEffect(() => {
@@ -57,6 +58,7 @@ export default function SettingsPage() {
 
   useEffect(() => {
     api.get('/auth/login-history').then(({ data }) => setLoginHistory(data))
+    api.get('/ocr/health').then(({ data }) => setOcrStatus(data)).catch(() => setOcrStatus({ error: 'Unable to fetch OCR status' }))
   }, [])
 
   const saveProfile = async () => {
@@ -157,6 +159,18 @@ export default function SettingsPage() {
             <div className="form-group"><label>New Password</label><input type="password" value={passwordForm.new} onChange={(e) => setPasswordForm({ ...passwordForm, new: e.target.value })} required minLength={8} /></div>
             <button type="submit" className="btn-primary">Update Password</button>
           </form>
+        </div>
+
+        <div className="chart-card">
+          <h3>OCR Health</h3>
+          {!ocrStatus && <p>Loading OCR status…</p>}
+          {ocrStatus?.error && <p className="text-muted">{ocrStatus.error}</p>}
+          {ocrStatus && !ocrStatus.error && (
+            <div>
+              <div className="form-group"><label>OCR.Space</label><input readOnly value={ocrStatus.ocr_space?.configured ? `Configured, reachable=${ocrStatus.ocr_space?.reachable}` : 'Not configured'} /></div>
+              <div className="form-group"><label>Tesseract</label><input readOnly value={ocrStatus.tesseract?.installed ? `Installed (${ocrStatus.tesseract.path})` : 'Not installed'} /></div>
+            </div>
+          )}
         </div>
 
         <div className="chart-card">

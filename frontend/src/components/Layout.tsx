@@ -6,6 +6,8 @@ import {
 import { useAuth } from '../contexts/AuthContext'
 import { useTheme } from '../contexts/ThemeContext'
 import { useLanguage } from '../contexts/LanguageContext'
+import api from '../lib/api'
+import { useState, useEffect } from 'react'
 
 const navKeys = [
   { to: '/', icon: LayoutDashboard, key: 'dashboard' },
@@ -15,6 +17,7 @@ const navKeys = [
   { to: '/reports', icon: BarChart3, key: 'reports' },
   { to: '/calculator', icon: Calculator, key: 'calculator' },
   { to: '/assistant', icon: MessageSquare, key: 'assistant' },
+  { to: '/suggested-transactions', icon: FileText, key: 'suggested_transactions' },
   { to: '/notifications', icon: Bell, key: 'notifications' },
   { to: '/settings', icon: Settings, key: 'settings' },
 ]
@@ -23,6 +26,44 @@ export default function Layout() {
   const { user, logout } = useAuth()
   const { theme, toggleTheme } = useTheme()
   const { t } = useLanguage()
+  const { refreshUser } = useAuth()
+  const { reload, language } = useLanguage()
+  const [langLoading, setLangLoading] = useState(false)
+  const [suggestedCount, setSuggestedCount] = useState(0)
+
+  const loadSuggestedCount = async () => {
+    try {
+      const { data } = await api.get('/suggested-transactions')
+      const count = data.filter((s: any) => s.status === 'suggested').length
+      setSuggestedCount(count)
+    } catch {
+      setSuggestedCount(0)
+    }
+  }
+
+  useEffect(() => { loadSuggestedCount() }, [])
+
+  const LANGUAGES = [
+    { code: 'en', label: 'English' },
+    { code: 'kn', label: 'Kannada' },
+    { code: 'hi', label: 'Hindi' },
+    { code: 'te', label: 'Telugu' },
+    { code: 'ta', label: 'Tamil' },
+    { code: 'ml', label: 'Malayalam' },
+    { code: 'mr', label: 'Marathi' },
+  ]
+
+  const changeLanguage = async (v: string) => {
+    if (!user) return
+    try {
+      setLangLoading(true)
+      await api.put('/auth/settings', { preferred_language: v })
+      await refreshUser()
+      await reload()
+    } finally {
+      setLangLoading(false)
+    }
+  }
 
   return (
     <div className="layout">
@@ -36,6 +77,9 @@ export default function Layout() {
             <NavLink key={to} to={to} end={to === '/'} className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
               <Icon size={20} />
               <span>{t(key)}</span>
+              {key === 'suggested_transactions' && suggestedCount > 0 && (
+                <span className="badge">{suggestedCount}</span>
+              )}
             </NavLink>
           ))}
         </nav>
@@ -52,6 +96,17 @@ export default function Layout() {
         </div>
       </aside>
       <main className="main-content">
+        <div className="topbar">
+          <div className="topbar-left">{/* place for local data / breadcrumbs */}</div>
+          <div className="topbar-right">
+            <div className="language-select-wrapper">
+              <select value={user?.preferred_language || language} onChange={(e) => changeLanguage(e.target.value)} disabled={langLoading}>
+                {LANGUAGES.map((l) => <option key={l.code} value={l.code}>{l.label}</option>)}
+              </select>
+              <span className="language-dropdown-icon">▾</span>
+            </div>
+          </div>
+        </div>
         <Outlet />
       </main>
     </div>

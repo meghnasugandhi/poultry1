@@ -60,6 +60,14 @@ async def main():
         chat.raise_for_status()
         print(f"Assistant: {chat.json()['message'][:80]}...")
 
+        chat_add = await client.post("/assistant/chat", headers=headers, json={"message": "Add 200 kg broiler feed"})
+        chat_add.raise_for_status()
+        print(f"Assistant add stock: {chat_add.json()['message']}")
+
+        chat_remove = await client.post("/assistant/chat", headers=headers, json={"message": "Remove 50 kg broiler feed"})
+        chat_remove.raise_for_status()
+        print(f"Assistant remove stock: {chat_remove.json()['message']}")
+
         # Translations
         tr = await client.get("/translations/ui", headers=headers)
         tr.raise_for_status()

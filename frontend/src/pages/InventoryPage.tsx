@@ -10,8 +10,11 @@ export default function InventoryPage() {
   const { t, language } = useLanguage()
   const { startListening, transcript, listening } = useSpeech(language)
   const [items, setItems] = useState<InventoryItem[]>([])
+  const [categories, setCategories] = useState<string[]>(['feed', 'medicine', 'vaccine'])
   const [category, setCategory] = useState('')
   const [showForm, setShowForm] = useState(false)
+  const [showCategoryInput, setShowCategoryInput] = useState(false)
+  const [newCategory, setNewCategory] = useState('')
   const [editId, setEditId] = useState<number | null>(null)
   const [historyId, setHistoryId] = useState<number | null>(null)
   const [history, setHistory] = useState<{ change_amount: number; reason: string; created_at: string }[]>([])
@@ -25,6 +28,24 @@ export default function InventoryPage() {
     api.get('/inventory/', { params: category ? { category } : {} }).then(({ data }) => setItems(data))
   }
 
+  useEffect(() => {
+    const stored = window.localStorage.getItem('inventoryCategories')
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored)
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setCategories(parsed)
+        }
+      } catch {
+        // ignore malformed storage
+      }
+    }
+  }, [])
+
+  useEffect(() => {
+    window.localStorage.setItem('inventoryCategories', JSON.stringify(categories))
+  }, [categories])
+
   useEffect(() => { load() }, [category])
 
   useEffect(() => {
@@ -32,7 +53,7 @@ export default function InventoryPage() {
   }, [transcript])
 
   const resetForm = () => {
-    setForm({ category: 'feed', product_name: '', quantity: '', unit: 'kg', reorder_level: '10', expiry_date: '', supplier_name: '' })
+    setForm({ category: categories[0] || 'feed', product_name: '', quantity: '', unit: 'kg', reorder_level: '10', expiry_date: '', supplier_name: '' })
     setEditId(null)
     setShowForm(false)
   }
@@ -69,6 +90,17 @@ export default function InventoryPage() {
       supplier_name: '',
     })
     setShowForm(true)
+  }
+
+  const createCategory = () => {
+    const candidate = newCategory.trim().toLowerCase()
+    if (!candidate) return
+    if (!categories.includes(candidate)) {
+      setCategories([...categories, candidate])
+      setCategory(candidate)
+    }
+    setNewCategory('')
+    setShowCategoryInput(false)
   }
 
   const handleDelete = async (id: number) => {
@@ -118,19 +150,32 @@ export default function InventoryPage() {
       </div>
 
       <div className="filter-bar">
-        {['', 'feed', 'medicine', 'vaccine'].map((c) => (
+        {['', ...categories].map((c) => (
           <button key={c} className={`filter-btn ${category === c ? 'active' : ''}`} onClick={() => setCategory(c)}>
-            {c || 'All'}
+            {c ? c.replace(/\b\w/g, (ch) => ch.toUpperCase()) : 'All'}
           </button>
         ))}
+        <button type="button" className="btn-secondary category-add-btn" onClick={() => setShowCategoryInput((prev) => !prev)}>
+          + Add Category
+        </button>
       </div>
+      {showCategoryInput && (
+        <div className="category-input-row">
+          <input
+            placeholder="New category name"
+            value={newCategory}
+            onChange={(e) => setNewCategory(e.target.value)}
+          />
+          <button type="button" className="btn-primary" onClick={createCategory}>Save Category</button>
+        </div>
+      )}
 
       {showForm && (
         <motion.form className="inline-form expanded" onSubmit={handleSubmit} initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
           <select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}>
-            <option value="feed">Feed</option>
-            <option value="medicine">Medicine</option>
-            <option value="vaccine">Vaccine</option>
+            {categories.map((cat) => (
+              <option key={cat} value={cat}>{cat.replace(/\b\w/g, (ch) => ch.toUpperCase())}</option>
+            ))}
           </select>
           <input placeholder="Product name" value={form.product_name} onChange={(e) => setForm({ ...form, product_name: e.target.value })} required />
           <input placeholder="Quantity" type="number" value={form.quantity} onChange={(e) => setForm({ ...form, quantity: e.target.value })} required />

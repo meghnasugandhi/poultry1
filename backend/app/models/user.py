@@ -60,6 +60,7 @@ class User(Base):
     chat_sessions: Mapped[list["ChatSession"]] = relationship(back_populates="user")
     notifications: Mapped[list["Notification"]] = relationship(back_populates="user")
     login_history: Mapped[list["LoginHistory"]] = relationship(back_populates="user")
+    suggested_transactions: Mapped[list["SuggestedTransaction"]] = relationship(back_populates="user")
 
 
 class LoginHistory(Base):

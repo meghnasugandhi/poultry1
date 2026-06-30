@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Upload, Download, AlertCircle } from 'lucide-react'
+import { Upload, Download, AlertCircle, Trash2 } from 'lucide-react'
 import api from '../lib/api'
 import { useLanguage } from '../contexts/LanguageContext'
 
@@ -28,7 +28,6 @@ export default function DocumentsPage() {
   const [docs, setDocs] = useState<Document[]>([])
   const [search, setSearch] = useState('')
   const [filterType, setFilterType] = useState('')
-  const [uploadType, setUploadType] = useState('feed_bill')
   const [clarifyDoc, setClarifyDoc] = useState<Document | null>(null)
   const [clarifyForm, setClarifyForm] = useState({ company_name: '', product_name: '', cost: '', invoice_number: '', supplier_name: '' })
 
@@ -45,7 +44,6 @@ export default function DocumentsPage() {
     if (!file) return
     const formData = new FormData()
     formData.append('file', file)
-    formData.append('document_type', uploadType)
     const { data } = await api.post('/documents/upload', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     })
@@ -72,6 +70,12 @@ export default function DocumentsPage() {
     a.click()
   }
 
+  const handleDelete = async (id: number) => {
+    if (!window.confirm('Delete this receipt/document?')) return
+    await api.delete(`/documents/${id}`)
+    load()
+  }
+
   const submitClarification = async () => {
     if (!clarifyDoc) return
     await api.put(`/documents/${clarifyDoc.id}/clarify`, {
@@ -90,10 +94,7 @@ export default function DocumentsPage() {
       <header className="page-header">
         <h2>{t('documents')}</h2>
         <div className="header-actions">
-          <select value={uploadType} onChange={(e) => setUploadType(e.target.value)}>
-            {DOC_TYPES.map((dt) => <option key={dt} value={dt}>{dt.replace(/_/g, ' ')}</option>)}
-          </select>
-          <label className="btn-primary upload-btn">
+            <label className="btn-primary upload-btn">
             <Upload size={18} /> {t('upload_document')}
             <input type="file" hidden onChange={handleUpload} accept="image/*,.pdf,.txt" />
           </label>
@@ -130,7 +131,10 @@ export default function DocumentsPage() {
                   ) : 'Verified'}
                 </td>
                 <td>
-                  <button className="icon-btn-sm" onClick={() => handleDownload(doc.id, doc.original_filename)}><Download size={14} /></button>
+                  <div className="table-actions">
+                    <button className="icon-btn-sm" onClick={() => handleDownload(doc.id, doc.original_filename)} title="Download"><Download size={14} /></button>
+                    <button className="icon-btn-sm danger" onClick={() => handleDelete(doc.id)} title="Delete"><Trash2 size={14} /></button>
+                  </div>
                 </td>
               </tr>
             ))}
@@ -142,7 +146,7 @@ export default function DocumentsPage() {
         <div className="modal-overlay">
           <div className="modal">
             <h3><AlertCircle size={20} /> Clarification Required</h3>
-            <p>OCR confidence was below 90%. Please verify or correct the extracted fields.</p>
+            <p>We detected a low-confidence or handwritten bill. Please verify the extracted fields before continuing.</p>
             <div className="form-group"><label>Company</label><input value={clarifyForm.company_name} onChange={(e) => setClarifyForm({ ...clarifyForm, company_name: e.target.value })} /></div>
             <div className="form-group"><label>Product</label><input value={clarifyForm.product_name} onChange={(e) => setClarifyForm({ ...clarifyForm, product_name: e.target.value })} /></div>
             <div className="form-group"><label>Cost (₹)</label><input type="number" value={clarifyForm.cost} onChange={(e) => setClarifyForm({ ...clarifyForm, cost: e.target.value })} /></div>

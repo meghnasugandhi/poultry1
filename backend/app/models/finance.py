@@ -42,3 +42,21 @@ class Transaction(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     user: Mapped["User"] = relationship(back_populates="transactions")
+
+
+class SuggestedTransaction(Base):
+    __tablename__ = "suggested_transactions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    document_id: Mapped[int | None] = mapped_column(ForeignKey("documents.id"), nullable=True)
+    transaction_type: Mapped[TransactionType] = mapped_column(Enum(TransactionType))
+    revenue_category: Mapped[RevenueCategory | None] = mapped_column(Enum(RevenueCategory), nullable=True)
+    expense_category: Mapped[ExpenseCategory | None] = mapped_column(Enum(ExpenseCategory), nullable=True)
+    amount: Mapped[float] = mapped_column(Float)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    transaction_date: Mapped[date] = mapped_column(Date)
+    status: Mapped[str] = mapped_column(String(50), default="suggested")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    user: Mapped["User"] = relationship(back_populates="suggested_transactions")

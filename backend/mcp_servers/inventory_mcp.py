@@ -8,8 +8,13 @@ TOOLS = [
     },
     {
         "name": "add_stock",
-        "description": "Add new inventory item",
-        "parameters": {"category": "string", "product_name": "string", "quantity": "number"},
+        "description": "Add or update inventory quantity",
+        "parameters": {"category": "string", "product_name": "string", "quantity": "number", "unit": "string"},
+    },
+    {
+        "name": "adjust_stock",
+        "description": "Adjust inventory quantity up or down",
+        "parameters": {"category": "string", "product_name": "string", "quantity_change": "number", "unit": "string"},
     },
     {
         "name": "get_low_stock",

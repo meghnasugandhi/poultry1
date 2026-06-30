@@ -53,3 +53,28 @@ class FinancialSummary(BaseModel):
     profit_loss: float
     revenue_breakdown: dict[str, float]
     expense_breakdown: dict[str, float]
+
+
+class SuggestedTransactionCreate(BaseModel):
+    document_id: int | None = None
+    transaction_type: TransactionType
+    revenue_category: RevenueCategory | None = None
+    expense_category: ExpenseCategory | None = None
+    amount: float = Field(gt=0)
+    description: str | None = None
+    transaction_date: date | None = None
+
+
+class SuggestedTransactionResponse(BaseModel):
+    id: int
+    document_id: int | None
+    transaction_type: TransactionType
+    revenue_category: RevenueCategory | None
+    expense_category: ExpenseCategory | None
+    amount: float
+    description: str | None
+    transaction_date: date
+    status: str
+    created_at: datetime
+
+    model_config = {"from_attributes": True}

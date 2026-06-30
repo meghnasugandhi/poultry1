@@ -28,6 +28,7 @@ class MCPRegistry:
             # Inventory MCP
             "get_stock": self.get_stock,
             "add_stock": self.add_stock,
+            "adjust_stock": self.adjust_stock,
             "get_low_stock": self.get_low_stock,
             "get_expiring": self.get_expiring,
             # Document MCP
@@ -73,18 +74,109 @@ class MCPRegistry:
             for i in result.scalars().all()
         ]
 
-    async def add_stock(self, category: str, product_name: str, quantity: float, unit: str = "kg") -> dict:
-        item = InventoryItem(
-            user_id=self.user.id,
-            category=InventoryCategory(category),
-            product_name=product_name,
-            quantity=quantity,
-            unit=unit,
+    async def _find_inventory_item(
+        self, category: str, product_name: str, unit: str | None = None
+    ) -> InventoryItem | None:
+        query = select(InventoryItem).where(
+            InventoryItem.user_id == self.user.id,
+            InventoryItem.category == InventoryCategory(category),
+            func.lower(InventoryItem.product_name) == product_name.lower(),
         )
-        self.db.add(item)
+        if unit:
+            query = query.where(InventoryItem.unit == unit)
+        result = await self.db.execute(query)
+        item = result.scalar_one_or_none()
+        if item:
+            return item
+        if not unit and product_name:
+            result = await self.db.execute(
+                select(InventoryItem).where(
+                    InventoryItem.user_id == self.user.id,
+                    InventoryItem.category == InventoryCategory(category),
+                    InventoryItem.product_name.ilike(f"%{product_name}%"),
+                )
+            )
+            return result.scalar_one_or_none()
+        return None
+
+    async def add_stock(
+        self,
+        category: str,
+        product_name: str,
+        quantity: float,
+        unit: str = "kg",
+        reason: str = "MCP add",
+    ) -> dict:
+        normalized_name = product_name.strip()
+        item = await self._find_inventory_item(category=category, product_name=normalized_name, unit=unit)
+        if item:
+            item.quantity += quantity
+        else:
+            item = InventoryItem(
+                user_id=self.user.id,
+                category=InventoryCategory(category),
+                product_name=normalized_name,
+                quantity=quantity,
+                unit=unit,
+            )
+            self.db.add(item)
+            await self.db.flush()
+        self.db.add(
+            StockMovement(item_id=item.id, change_amount=quantity, reason=reason)
+        )
         await self.db.flush()
-        self.db.add(StockMovement(item_id=item.id, change_amount=quantity, reason="MCP add"))
-        return {"id": item.id, "product_name": product_name, "quantity": quantity}
+        return {
+            "id": item.id,
+            "product_name": item.product_name,
+            "category": item.category.value,
+            "quantity": item.quantity,
+            "unit": item.unit,
+        }
+
+    async def adjust_stock(
+        self,
+        category: str,
+        product_name: str,
+        quantity_change: float,
+        unit: str = "kg",
+        reason: str = "MCP adjust",
+    ) -> dict:
+        if quantity_change >= 0:
+            return await self.add_stock(
+                category=category,
+                product_name=product_name,
+                quantity=quantity_change,
+                unit=unit,
+                reason=reason,
+            )
+
+        item = await self._find_inventory_item(
+            category=category, product_name=product_name, unit=unit
+        )
+        if not item:
+            return {
+                "error": f"No {category} inventory item found for '{product_name}'."
+            }
+
+        actual_change = quantity_change
+        if item.quantity + actual_change < 0:
+            actual_change = -item.quantity
+            item.quantity = 0
+        else:
+            item.quantity += actual_change
+
+        self.db.add(
+            StockMovement(item_id=item.id, change_amount=actual_change, reason=reason)
+        )
+        await self.db.flush()
+        return {
+            "id": item.id,
+            "product_name": item.product_name,
+            "category": item.category.value,
+            "quantity": item.quantity,
+            "unit": item.unit,
+            "removed": abs(actual_change),
+        }
 
     async def get_low_stock(self) -> list[dict]:
         result = await self.db.execute(

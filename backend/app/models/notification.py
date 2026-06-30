@@ -45,7 +45,7 @@ class ChatSession(Base):
     )
 
     user: Mapped["User"] = relationship(back_populates="chat_sessions")
-    messages: Mapped[list["ChatMessage"]] = relationship(back_populates="session")
+    messages: Mapped[list["ChatMessage"]] = relationship(back_populates="session", cascade="all, delete-orphan")
 
 
 class ChatMessage(Base):

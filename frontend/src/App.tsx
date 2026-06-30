@@ -16,11 +16,14 @@ import AssistantPage from './pages/AssistantPage'
 import NotificationsPage from './pages/NotificationsPage'
 import SettingsPage from './pages/SettingsPage'
 import VoicePage from './pages/VoicePage'
+import SuggestedTransactionsPage from './pages/SuggestedTransactionsPage'
+import { ToastProvider } from './contexts/ToastContext'
 
 function AppRoutes() {
   return (
     <LanguageProvider>
-      <Routes>
+      <ToastProvider>
+        <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
         <Route element={<ProtectedRoute />}>
@@ -32,13 +35,15 @@ function AppRoutes() {
             <Route path="/reports" element={<ReportsPage />} />
             <Route path="/calculator" element={<CalculatorPage />} />
             <Route path="/assistant" element={<AssistantPage />} />
+            <Route path="/suggested-transactions" element={<SuggestedTransactionsPage />} />
             <Route path="/notifications" element={<NotificationsPage />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/voice" element={<VoicePage />} />
           </Route>
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
+        </Routes>
+      </ToastProvider>
     </LanguageProvider>
   )
 }

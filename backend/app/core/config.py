@@ -14,6 +14,7 @@ class Settings(BaseSettings):
 
     OPENAI_API_KEY: str = ""
     OCR_SERVICE_URL: str = "http://localhost:8001"
+    OCR_SPACE_API_KEY: str = ""  # optional: set to use OCR.Space cloud OCR (free tier available)
 
     CORS_ORIGINS: list[str] = ["http://localhost:5173", "http://localhost:3000"]
 
