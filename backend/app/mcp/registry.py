@@ -1,54 +1,123 @@
-"""Unified MCP tool registry — all 9 MCP servers as callable tools."""
+"""Unified MCP tool registry with modular tool groups and backward-compatible aliases."""
 
-from datetime import date, datetime, timedelta
+import logging
 from typing import Any
 
-from sqlalchemy import extract, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.document import Document
-from app.models.finance import ExpenseCategory, RevenueCategory, Transaction, TransactionType
-from app.models.inventory import InventoryCategory, InventoryItem, StockMovement
 from app.models.user import User
-from app.services.calculator_service import CALCULATORS
-from app.services.ocr_service import process_document_ocr
-from app.services.report_service import generate_report
-from app.services.translation_service import get_ui_bundle, translate_text
 from app.schemas.assistant import ExportFormat, ReportType
+from app.services.calculator_service import CALCULATORS
+from app.services.tools.dashboard_tools import DashboardToolService
+from app.services.tools.finance_tools import FinanceToolService
+from app.services.tools.inventory_tools import InventoryToolService
+from app.services.tools.notification_tools import NotificationToolService
+from app.services.tools.ocr_tools import OCRToolService
+from app.services.tools.reports_tools import ReportToolService
+from app.services.tools.search_tools import SearchToolService
+from app.services.tools.voice_tools import VoiceToolService
+from app.services.translation_service import get_ui_bundle, translate_text
 
 
 class MCPRegistry:
     def __init__(self, db: AsyncSession, user: User):
         self.db = db
         self.user = user
+        self.logger = logging.getLogger("poultry.mcp.registry")
+        self.inventory_tools = InventoryToolService(db, user, self.logger)
+        self.finance_tools = FinanceToolService(db, user, self.logger)
+        self.report_tools = ReportToolService(db, user, self.logger)
+        self.ocr_tools = OCRToolService(self.logger)
+        self.dashboard_tools = DashboardToolService(db, user, self.logger)
+        self.notification_tools = NotificationToolService(db, user, self.logger)
+        self.voice_tools = VoiceToolService(self.logger)
+        self.search_tools = SearchToolService(db, user, self.logger)
+
+    def get_tool_catalog(self) -> dict[str, list[str]]:
+        return {
+            "inventory": [
+                "add_stock",
+                "remove_stock",
+                "adjust_stock",
+                "transfer_stock",
+                "get_stock",
+                "get_low_stock",
+                "predict_stock_shortage",
+            ],
+            "finance": [
+                "create_expense",
+                "create_income",
+                "supplier_summary",
+                "cash_flow",
+                "profit_loss",
+                "monthly_finance",
+            ],
+            "reports": [
+                "daily_report",
+                "weekly_report",
+                "monthly_report",
+                "yearly_report",
+                "export_pdf",
+                "export_excel",
+            ],
+            "ocr": ["parse_bill", "verify_bill", "classify_document", "extract_items"],
+            "dashboard": ["dashboard_summary", "analytics_summary", "farm_summary"],
+            "notifications": ["email", "sms", "whatsapp", "push_notification"],
+            "voice": ["speech_to_text", "text_to_speech", "language_detection"],
+            "search": ["search_documents", "search_inventory", "search_finance", "search_reports"],
+        }
 
     async def execute(self, tool: str, params: dict[str, Any] | None = None) -> Any:
         params = params or {}
-        handlers = {
-            # Inventory MCP
-            "get_stock": self.get_stock,
-            "add_stock": self.add_stock,
-            "adjust_stock": self.adjust_stock,
-            "get_low_stock": self.get_low_stock,
-            "get_expiring": self.get_expiring,
-            # Document MCP
-            "search_documents": self.search_documents,
-            "get_document": self.get_document,
-            # OCR MCP
-            "extract_invoice": self.extract_invoice,
-            # Finance MCP
-            "get_expenses": self.get_expenses,
-            "get_revenue": self.get_revenue,
-            "get_profit_loss": self.get_profit_loss,
-            "get_monthly_summary": self.get_monthly_summary,
-            # Report MCP
-            "generate_report": self.mcp_generate_report,
-            # Calculator MCP
+        self.logger.info("mcp.execute", extra={"tool": tool, "params": params})
+        handlers: dict[str, Any] = {
+            "get_stock": self.inventory_tools.get_stock,
+            "add_stock": self.inventory_tools.add_stock,
+            "remove_stock": self.inventory_tools.remove_stock,
+            "adjust_stock": self.inventory_tools.adjust_stock,
+            "transfer_stock": self.inventory_tools.transfer_stock,
+            "get_low_stock": self.inventory_tools.get_low_stock,
+            "predict_stock_shortage": self.inventory_tools.predict_stock_shortage,
+            "get_expiring": self.inventory_tools.get_low_stock,
+            "search_documents": self.search_tools.search_documents,
+            "search_inventory": self.search_tools.search_inventory,
+            "search_finance": self.search_tools.search_finance,
+            "search_reports": self.search_tools.search_reports,
+            "parse_bill": self.ocr_tools.parse_bill,
+            "verify_bill": self.ocr_tools.verify_bill,
+            "classify_document": self.ocr_tools.classify_document,
+            "extract_items": self.ocr_tools.extract_items,
+            "create_expense": self.finance_tools.create_expense,
+            "create_income": self.finance_tools.create_income,
+            "supplier_summary": self.finance_tools.supplier_summary,
+            "cash_flow": self.finance_tools.cash_flow,
+            "profit_loss": self.finance_tools.profit_loss,
+            "monthly_finance": self.finance_tools.monthly_finance,
+            "daily_report": self.report_tools.daily_report,
+            "weekly_report": self.report_tools.weekly_report,
+            "monthly_report": self.report_tools.monthly_report,
+            "yearly_report": self.report_tools.yearly_report,
+            "export_pdf": self.report_tools.export_pdf,
+            "export_excel": self.report_tools.export_excel,
+            "dashboard_summary": self.dashboard_tools.dashboard_summary,
+            "analytics_summary": self.dashboard_tools.analytics_summary,
+            "farm_summary": self.dashboard_tools.farm_summary,
+            "email": self.notification_tools.email,
+            "sms": self.notification_tools.sms,
+            "whatsapp": self.notification_tools.whatsapp,
+            "push_notification": self.notification_tools.push_notification,
+            "speech_to_text": self.voice_tools.speech_to_text,
+            "text_to_speech": self.voice_tools.text_to_speech,
+            "language_detection": self.voice_tools.language_detection,
+            "get_expenses": self.finance_tools.get_expenses,
+            "get_revenue": self.finance_tools.get_revenue,
+            "get_profit_loss": self.finance_tools.get_profit_loss,
+            "get_monthly_summary": self.finance_tools.get_monthly_summary,
+            "generate_report": self.report_tools.export_pdf,
+            "mcp_generate_report": self.report_tools.export_pdf,
             "calculate": self.calculate,
-            # Translation MCP
             "translate_text": self.mcp_translate,
             "translate_ui": self.mcp_translate_ui,
-            # Database MCP
             "get_dashboard_stats": self.get_dashboard_stats,
             "get_user_profile": self.get_user_profile,
         }
@@ -57,318 +126,23 @@ class MCPRegistry:
             raise ValueError(f"Unknown MCP tool: {tool}")
         return await handler(**params)
 
-    # --- Inventory MCP ---
-    async def get_stock(self, category: str | None = None) -> list[dict]:
-        query = select(InventoryItem).where(InventoryItem.user_id == self.user.id)
-        if category:
-            query = query.where(InventoryItem.category == InventoryCategory(category))
-        result = await self.db.execute(query)
-        return [
-            {
-                "product_name": i.product_name,
-                "category": i.category.value,
-                "quantity": i.quantity,
-                "unit": i.unit,
-                "is_low": i.quantity <= i.reorder_level,
-            }
-            for i in result.scalars().all()
-        ]
-
-    async def _find_inventory_item(
-        self, category: str, product_name: str, unit: str | None = None
-    ) -> InventoryItem | None:
-        query = select(InventoryItem).where(
-            InventoryItem.user_id == self.user.id,
-            InventoryItem.category == InventoryCategory(category),
-            func.lower(InventoryItem.product_name) == product_name.lower(),
-        )
-        if unit:
-            query = query.where(InventoryItem.unit == unit)
-        result = await self.db.execute(query)
-        item = result.scalar_one_or_none()
-        if item:
-            return item
-        if not unit and product_name:
-            result = await self.db.execute(
-                select(InventoryItem).where(
-                    InventoryItem.user_id == self.user.id,
-                    InventoryItem.category == InventoryCategory(category),
-                    InventoryItem.product_name.ilike(f"%{product_name}%"),
-                )
-            )
-            return result.scalar_one_or_none()
-        return None
-
-    async def add_stock(
-        self,
-        category: str,
-        product_name: str,
-        quantity: float,
-        unit: str = "kg",
-        reason: str = "MCP add",
-    ) -> dict:
-        normalized_name = product_name.strip()
-        item = await self._find_inventory_item(category=category, product_name=normalized_name, unit=unit)
-        if item:
-            item.quantity += quantity
-        else:
-            item = InventoryItem(
-                user_id=self.user.id,
-                category=InventoryCategory(category),
-                product_name=normalized_name,
-                quantity=quantity,
-                unit=unit,
-            )
-            self.db.add(item)
-            await self.db.flush()
-        self.db.add(
-            StockMovement(item_id=item.id, change_amount=quantity, reason=reason)
-        )
-        await self.db.flush()
-        return {
-            "id": item.id,
-            "product_name": item.product_name,
-            "category": item.category.value,
-            "quantity": item.quantity,
-            "unit": item.unit,
-        }
-
-    async def adjust_stock(
-        self,
-        category: str,
-        product_name: str,
-        quantity_change: float,
-        unit: str = "kg",
-        reason: str = "MCP adjust",
-    ) -> dict:
-        if quantity_change >= 0:
-            return await self.add_stock(
-                category=category,
-                product_name=product_name,
-                quantity=quantity_change,
-                unit=unit,
-                reason=reason,
-            )
-
-        item = await self._find_inventory_item(
-            category=category, product_name=product_name, unit=unit
-        )
-        if not item:
-            return {
-                "error": f"No {category} inventory item found for '{product_name}'."
-            }
-
-        actual_change = quantity_change
-        if item.quantity + actual_change < 0:
-            actual_change = -item.quantity
-            item.quantity = 0
-        else:
-            item.quantity += actual_change
-
-        self.db.add(
-            StockMovement(item_id=item.id, change_amount=actual_change, reason=reason)
-        )
-        await self.db.flush()
-        return {
-            "id": item.id,
-            "product_name": item.product_name,
-            "category": item.category.value,
-            "quantity": item.quantity,
-            "unit": item.unit,
-            "removed": abs(actual_change),
-        }
-
-    async def get_low_stock(self) -> list[dict]:
-        result = await self.db.execute(
-            select(InventoryItem).where(InventoryItem.user_id == self.user.id)
-        )
-        return [
-            {"product_name": i.product_name, "quantity": i.quantity, "unit": i.unit}
-            for i in result.scalars().all()
-            if i.quantity <= i.reorder_level
-        ]
-
-    async def get_expiring(self) -> list[dict]:
-        deadline = date.today() + timedelta(days=30)
-        result = await self.db.execute(
-            select(InventoryItem).where(
-                InventoryItem.user_id == self.user.id,
-                InventoryItem.expiry_date.isnot(None),
-                InventoryItem.expiry_date <= deadline,
-            )
-        )
-        return [
-            {"product_name": i.product_name, "expiry_date": str(i.expiry_date)}
-            for i in result.scalars().all()
-        ]
-
-    # --- Document MCP ---
-    async def search_documents(self, query: str = "", document_type: str | None = None, month: str | None = None) -> list[dict]:
-        q = select(Document).where(Document.user_id == self.user.id)
-        if document_type:
-            q = q.where(Document.document_type == document_type)
-        if query:
-            pattern = f"%{query}%"
-            q = q.where(
-                (Document.company_name.ilike(pattern))
-                | (Document.supplier_name.ilike(pattern))
-                | (Document.original_filename.ilike(pattern))
-            )
-        if month:
-            try:
-                m, y = map(int, month.split("/"))
-                q = q.where(extract("month", Document.created_at) == m, extract("year", Document.created_at) == y)
-            except ValueError:
-                pass
-        result = await self.db.execute(q.order_by(Document.created_at.desc()))
-        return [
-            {
-                "id": d.id,
-                "filename": d.original_filename,
-                "company": d.company_name,
-                "cost": d.cost,
-                "date": str(d.invoice_date or d.created_at.date()),
-            }
-            for d in result.scalars().all()
-        ]
-
-    async def get_document(self, document_id: int) -> dict | None:
-        result = await self.db.execute(
-            select(Document).where(Document.id == document_id, Document.user_id == self.user.id)
-        )
-        d = result.scalar_one_or_none()
-        if not d:
-            return None
-        return {
-            "id": d.id,
-            "filename": d.original_filename,
-            "company_name": d.company_name,
-            "product_name": d.product_name,
-            "cost": d.cost,
-            "invoice_number": d.invoice_number,
-        }
-
-    async def extract_invoice(self, file_path: str) -> dict:
-        return await process_document_ocr(file_path)
-
-    # --- Finance MCP ---
-    async def get_expenses(self, category: str | None = None, start_date: str | None = None, end_date: str | None = None) -> dict:
-        q = select(func.coalesce(func.sum(Transaction.amount), 0)).where(
-            Transaction.user_id == self.user.id,
-            Transaction.transaction_type == TransactionType.EXPENSE,
-        )
-        if category:
-            q = q.where(Transaction.expense_category == ExpenseCategory(category))
-        if start_date:
-            q = q.where(Transaction.transaction_date >= date.fromisoformat(start_date))
-        if end_date:
-            q = q.where(Transaction.transaction_date <= date.fromisoformat(end_date))
-        total = float((await self.db.execute(q)).scalar() or 0)
-        return {"total": total, "category": category}
-
-    async def get_revenue(self, category: str | None = None) -> dict:
-        q = select(func.coalesce(func.sum(Transaction.amount), 0)).where(
-            Transaction.user_id == self.user.id,
-            Transaction.transaction_type == TransactionType.REVENUE,
-        )
-        if category:
-            q = q.where(Transaction.revenue_category == RevenueCategory(category))
-        total = float((await self.db.execute(q)).scalar() or 0)
-        return {"total": total, "category": category}
-
-    async def get_profit_loss(self) -> dict:
-        rev = float(
-            (await self.db.execute(
-                select(func.coalesce(func.sum(Transaction.amount), 0)).where(
-                    Transaction.user_id == self.user.id,
-                    Transaction.transaction_type == TransactionType.REVENUE,
-                )
-            )).scalar()
-            or 0
-        )
-        exp = float(
-            (await self.db.execute(
-                select(func.coalesce(func.sum(Transaction.amount), 0)).where(
-                    Transaction.user_id == self.user.id,
-                    Transaction.transaction_type == TransactionType.EXPENSE,
-                )
-            )).scalar()
-            or 0
-        )
-        return {"revenue": rev, "expenses": exp, "profit_loss": rev - exp}
-
-    async def get_monthly_summary(self, month: int | None = None, year: int | None = None) -> dict:
-        today = date.today()
-        m = month or today.month
-        y = year or today.year
-        start = date(y, m, 1)
-        end = date(y + 1, 1, 1) if m == 12 else date(y, m + 1, 1)
-        rev = float(
-            (await self.db.execute(
-                select(func.coalesce(func.sum(Transaction.amount), 0)).where(
-                    Transaction.user_id == self.user.id,
-                    Transaction.transaction_type == TransactionType.REVENUE,
-                    Transaction.transaction_date >= start,
-                    Transaction.transaction_date < end,
-                )
-            )).scalar()
-            or 0
-        )
-        exp = float(
-            (await self.db.execute(
-                select(func.coalesce(func.sum(Transaction.amount), 0)).where(
-                    Transaction.user_id == self.user.id,
-                    Transaction.transaction_type == TransactionType.EXPENSE,
-                    Transaction.transaction_date >= start,
-                    Transaction.transaction_date < end,
-                )
-            )).scalar()
-            or 0
-        )
-        return {"month": m, "year": y, "revenue": rev, "expenses": exp, "profit_loss": rev - exp}
-
-    # --- Report MCP ---
-    async def mcp_generate_report(self, report_type: str, format: str = "pdf") -> str:
-        return await generate_report(
-            user=self.user,
-            report_type=ReportType(report_type),
-            export_format=ExportFormat(format),
-            db=self.db,
-        )
-
-    # --- Calculator MCP ---
-    async def calculate(self, calculation_type: str, inputs: dict[str, float]) -> dict:
+    async def calculate(self, calculation_type: str, inputs: dict[str, float]) -> dict[str, Any]:
         calc = CALCULATORS.get(calculation_type)
         if not calc:
             raise ValueError(f"Unknown calculation: {calculation_type}")
         result = calc["fn"](inputs)
         return {"formula": calc["formula"], **result}
 
-    # --- Translation MCP ---
     async def mcp_translate(self, text: str, target_language: str) -> str:
         return translate_text(text, target_language)
 
     async def mcp_translate_ui(self, target_language: str) -> dict[str, str]:
         return get_ui_bundle(target_language)
 
-    # --- Database MCP ---
-    async def get_dashboard_stats(self) -> dict:
-        feed = float(
-            (await self.db.execute(
-                select(func.coalesce(func.sum(InventoryItem.quantity), 0)).where(
-                    InventoryItem.user_id == self.user.id,
-                    InventoryItem.category == InventoryCategory.FEED,
-                )
-            )).scalar()
-            or 0
-        )
-        return {
-            "total_birds": self.user.current_bird_count,
-            "feed_stock": feed,
-            "farm_name": self.user.farm_name,
-        }
+    async def get_dashboard_stats(self) -> dict[str, Any]:
+        return await self.dashboard_tools.dashboard_summary()
 
-    async def get_user_profile(self) -> dict:
+    async def get_user_profile(self) -> dict[str, Any]:
         return {
             "owner_name": self.user.owner_name,
             "farm_name": self.user.farm_name,

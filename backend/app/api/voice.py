@@ -1,16 +1,20 @@
-import base64
-import os
 import re
-import uuid
 
-from fastapi import APIRouter, Depends, File, Form, UploadFile
+from fastapi import APIRouter, Depends, Form
 from pydantic import BaseModel
 
-from app.core.config import settings
+from app.core.database import get_db
 from app.core.deps import get_current_user
 from app.models.user import User
+from app.services.voice_service import VoiceCommandService
 
 router = APIRouter(prefix="/voice", tags=["Voice Assistant"])
+
+
+def _get_voice_service(current_user: User, db) -> VoiceCommandService:
+    from app.agent.poultry_agent import PoultryAgent
+
+    return VoiceCommandService(PoultryAgent(user=current_user, db=db))
 
 LANG_MAP = {
     "en": "en-US",
@@ -67,13 +71,14 @@ async def parse_voice_command(
     data: SpeechTextRequest,
     current_user: User = Depends(get_current_user),
 ):
-    """Parse natural language voice commands for inventory updates."""
-    text = data.text.lower()
+    """Parse natural language voice commands for ERP actions and return a structured result."""
+    text = data.text or ""
+    lowered = text.lower()
     result = {"action": None, "parsed": {}}
 
     add_match = re.search(
         r"(?:add|receive|received|purchase|purchased|got|bought|stocked)\s+(\d+(?:\.\d+)?)\s*(kg|g|grams|bags|units|doses|ml|l)?\s+(?:of\s+)?(.+)",
-        text,
+        lowered,
     )
     if add_match:
         product = add_match.group(3).strip().title()
@@ -94,7 +99,7 @@ async def parse_voice_command(
 
     remove_match = re.search(
         r"(?:remove|use|used|consume|consumed|deduct|delete|discard|reduce|take)\s+(\d+(?:\.\d+)?)\s*(kg|g|grams|bags|units|doses|ml|l)?\s+(?:of\s+)?(.+)",
-        text,
+        lowered,
     )
     if remove_match:
         product = remove_match.group(3).strip().title()
@@ -112,4 +117,35 @@ async def parse_voice_command(
                 "category": category,
             },
         }
+
+    if "expense" in lowered or "charges" in lowered or "cost" in lowered:
+        amount_match = re.search(r"(?:₹|rs\.?)\s*([\d,]+(?:\.\d{1,2})?)", lowered)
+        if amount_match:
+            result = {
+                "action": "record_expense",
+                "parsed": {"amount": float(amount_match.group(1).replace(",", ""))},
+            }
+            return result
+
+    if any(keyword in lowered for keyword in ["dashboard", "summary", "status"]):
+        return {"action": "dashboard_summary", "parsed": {}}
+    if any(keyword in lowered for keyword in ["document", "bill", "invoice", "search"]):
+        return {"action": "search_documents", "parsed": {"query": text}}
+    if "notification" in lowered or "notify" in lowered:
+        return {"action": "notifications", "parsed": {}}
+    if any(keyword in lowered for keyword in ["report", "generate"]):
+        return {"action": "generate_report", "parsed": {}}
     return result
+
+
+@router.post("/command")
+async def handle_voice_command(
+    data: SpeechTextRequest,
+    current_user: User = Depends(get_current_user),
+    db=Depends(get_db),
+):
+    from app.core.database import get_db
+
+    service = _get_voice_service(current_user, db)
+    response = await service.handle_voice_command(data.text, language=data.language or current_user.preferred_language.value)
+    return response

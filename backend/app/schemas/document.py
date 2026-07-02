@@ -32,6 +32,9 @@ class DocumentResponse(BaseModel):
     raw_ocr_text: str | None
     is_confused: bool = False
     created_at: datetime
+    structured_data: dict | None = None
+    suggested_inventory_entry: dict | None = None
+    suggested_finance_entry: dict | None = None
 
     model_config = {"from_attributes": True}
 

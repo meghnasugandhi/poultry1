@@ -25,9 +25,8 @@ const navKeys = [
 export default function Layout() {
   const { user, logout } = useAuth()
   const { theme, toggleTheme } = useTheme()
-  const { t } = useLanguage()
   const { refreshUser } = useAuth()
-  const { reload, language } = useLanguage()
+  const { t, reload, language } = useLanguage()
   const [langLoading, setLangLoading] = useState(false)
   const [suggestedCount, setSuggestedCount] = useState(0)
 
@@ -59,7 +58,7 @@ export default function Layout() {
       setLangLoading(true)
       await api.put('/auth/settings', { preferred_language: v })
       await refreshUser()
-      await reload()
+      await reload(v)
     } finally {
       setLangLoading(false)
     }
@@ -100,7 +99,7 @@ export default function Layout() {
           <div className="topbar-left">{/* place for local data / breadcrumbs */}</div>
           <div className="topbar-right">
             <div className="language-select-wrapper">
-              <select value={user?.preferred_language || language} onChange={(e) => changeLanguage(e.target.value)} disabled={langLoading}>
+              <select value={language} onChange={(e) => changeLanguage(e.target.value)} disabled={langLoading}>
                 {LANGUAGES.map((l) => <option key={l.code} value={l.code}>{l.label}</option>)}
               </select>
               <span className="language-dropdown-icon">▾</span>

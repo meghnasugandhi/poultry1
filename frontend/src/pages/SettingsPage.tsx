@@ -144,10 +144,10 @@ export default function SettingsPage() {
             <button type="button" className={`toggle ${theme === 'dark' ? 'on' : ''}`} onClick={toggleTheme} aria-label="Toggle dark mode" />
           </div>
           <div className="form-group toggle-row"><label>Voice Responses</label>
-            <button type="button" className={`toggle ${voiceEnabled ? 'on' : ''}`} onClick={() => setVoiceEnabled(!voiceEnabled)} aria-label="Toggle voice" />
+            <button type="button" className={`toggle ${voiceEnabled ? 'on' : ''}`} onClick={(e) => { e.preventDefault(); e.stopPropagation(); setVoiceEnabled(!voiceEnabled) }} aria-label="Toggle voice" />
           </div>
           <div className="form-group toggle-row"><label>Notifications</label>
-            <button type="button" className={`toggle ${notificationsEnabled ? 'on' : ''}`} onClick={() => setNotificationsEnabled(!notificationsEnabled)} aria-label="Toggle notifications" />
+            <button type="button" className={`toggle ${notificationsEnabled ? 'on' : ''}`} onClick={(e) => { e.preventDefault(); e.stopPropagation(); setNotificationsEnabled(!notificationsEnabled) }} aria-label="Toggle notifications" />
           </div>
           <button className="btn-primary" onClick={saveSettings}>{t('save')} Settings</button>
         </div>

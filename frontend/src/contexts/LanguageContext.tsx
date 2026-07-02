@@ -1,6 +1,8 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
 import api from '../lib/api'
 import { useAuth } from './AuthContext'
+import en from '../locales/en.json'
+import hi from '../locales/hi.json'
 
 type Labels = Record<string, string>
 
@@ -8,47 +10,39 @@ interface LanguageContextType {
   labels: Labels
   language: string
   t: (key: string) => string
-  reload: () => Promise<void>
+  reload: (languageOverride?: string) => Promise<void>
 }
 
 const LanguageContext = createContext<LanguageContextType | null>(null)
 
-const FALLBACK: Labels = {
-  dashboard: 'Dashboard',
-  inventory: 'Inventory',
-  documents: 'Documents',
-  finance: 'Finance',
-  reports: 'Reports',
-  calculator: 'Calculator',
-  assistant: 'AI Assistant',
-  notifications: 'Notifications',
-  settings: 'Settings',
-  voice: 'Voice Assistant',
-  save: 'Save',
-  logout: 'Logout',
-  welcome: 'Welcome',
-  total_birds: 'Total Birds',
-  feed_stock: 'Feed Stock',
-  profit_loss: 'Profit / Loss',
-  search: 'Search',
-  new_chat: 'New Chat',
-  upload: 'Upload',
-  suggested_transactions: 'Suggested Transactions',
-}
+const FALLBACK: Labels = en as Labels
 
 export function LanguageProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth()
   const [labels, setLabels] = useState<Labels>(FALLBACK)
   const [language, setLanguage] = useState('en')
 
-  const reload = async () => {
+  const reload = async (languageOverride?: string) => {
+    const targetLanguage = languageOverride || user?.preferred_language || 'en'
+    if (targetLanguage === 'hi') {
+      setLabels({ ...FALLBACK, ...(hi as Labels) })
+      setLanguage(targetLanguage)
+      return
+    }
+    if (targetLanguage === 'en') {
+      setLabels(FALLBACK)
+      setLanguage(targetLanguage)
+      return
+    }
     if (!user) return
     try {
       const { data } = await api.get('/translations/ui')
-      setLabels({ ...FALLBACK, ...data.labels })
-      setLanguage(data.language)
+      const nextLabels = { ...FALLBACK, ...data.labels }
+      setLabels(nextLabels)
+      setLanguage(data.language || targetLanguage)
     } catch {
       setLabels(FALLBACK)
+      setLanguage('en')
     }
   }
 

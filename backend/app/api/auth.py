@@ -2,6 +2,7 @@ import uuid
 
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
 from fastapi.security import OAuth2PasswordRequestForm
+from sqlalchemy.exc import OperationalError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -21,6 +22,21 @@ from app.schemas.auth import (
 )
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
+
+
+async def record_login_history(request: Request, user: User, db: AsyncSession) -> None:
+    login_entry = LoginHistory(
+        user_id=user.id,
+        ip_address=request.client.host if request.client else None,
+        device=request.headers.get("user-agent"),
+    )
+    db.add(login_entry)
+    try:
+        await db.commit()
+    except OperationalError as exc:
+        await db.rollback()
+        if "database is locked" not in str(exc).lower():
+            raise
 
 
 @router.post("/register", response_model=Token, status_code=status.HTTP_201_CREATED)
@@ -58,14 +74,8 @@ async def login(
     if not user or not verify_password(form_data.password, user.hashed_password):
         raise HTTPException(status_code=401, detail="Incorrect email or password")
 
-    login_entry = LoginHistory(
-        user_id=user.id,
-        ip_address=request.client.host if request.client else None,
-        device=request.headers.get("user-agent"),
-    )
-    db.add(login_entry)
-
     token = create_access_token({"sub": str(user.id)})
+    await record_login_history(request, user, db)
     return Token(access_token=token)
 
 
@@ -80,14 +90,8 @@ async def login_json(
     if not user or not verify_password(data.password, user.hashed_password):
         raise HTTPException(status_code=401, detail="Incorrect email or password")
 
-    login_entry = LoginHistory(
-        user_id=user.id,
-        ip_address=request.client.host if request.client else None,
-        device=request.headers.get("user-agent"),
-    )
-    db.add(login_entry)
-
     token = create_access_token({"sub": str(user.id)})
+    await record_login_history(request, user, db)
     return Token(access_token=token)
 
 

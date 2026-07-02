@@ -8,10 +8,14 @@ from app.core.database import get_db
 from app.core.deps import get_current_user
 from app.models.finance import Transaction, TransactionType
 from app.models.inventory import InventoryCategory, InventoryItem
+from app.models.notification import Notification, NotificationType
 from app.models.user import User
+from app.services.dashboard_cache import DashboardCache
 from app.services.notification_service import sync_alerts
+from app.services.rag_service import RAGService
 
 router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
+cache = DashboardCache(ttl_seconds=60)
 
 
 async def _monthly_totals(db: AsyncSession, user_id: int, ttype: TransactionType, months_back: int = 6):
@@ -39,7 +43,13 @@ async def _monthly_totals(db: AsyncSession, user_id: int, ttype: TransactionType
 async def get_dashboard(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    language: str | None = None,
 ):
+    response_language = language or current_user.preferred_language.value
+    cached = cache.get(f"dashboard:{current_user.id}:{response_language}")
+    if cached:
+        return cached
+
     if current_user.notifications_enabled:
         await sync_alerts(db, current_user)
 
@@ -105,7 +115,51 @@ async def get_dashboard(
         for d in [date.today().replace(day=1) - timedelta(days=i * 28) for i in range(5, -1, -1)]
     ]
 
-    return {
+    pending_bills_result = await db.execute(
+        select(func.coalesce(func.count(Transaction.id), 0)).where(
+            Transaction.user_id == current_user.id,
+            Transaction.transaction_type == TransactionType.EXPENSE,
+            Transaction.transaction_date < date.today(),
+        )
+    )
+    pending_bills = int(pending_bills_result.scalar() or 0)
+
+    recent_expense_result = await db.execute(
+        select(func.coalesce(func.sum(Transaction.amount), 0)).where(
+            Transaction.user_id == current_user.id,
+            Transaction.transaction_type == TransactionType.EXPENSE,
+            Transaction.transaction_date >= date.today() - timedelta(days=7),
+        )
+    )
+    recent_expenses = float(recent_expense_result.scalar() or 0)
+
+    low_stock_items = []
+    low_stock_result = await db.execute(
+        select(InventoryItem).where(
+            InventoryItem.user_id == current_user.id,
+            InventoryItem.quantity <= 10,
+        )
+    )
+    for item in low_stock_result.scalars().all():
+        low_stock_items.append(item.product_name or item.category.value)
+
+    vaccination_alerts = [
+        "Vaccination window for the next flock is due soon."
+    ]
+    mortality_alerts = []
+
+    rag_service = RAGService()
+    ai_summary = rag_service.build_dashboard_insights({
+        "feed_stock": feed_stock,
+        "medicine_stock": medicine_stock,
+        "pending_bills": pending_bills,
+        "recent_expenses": recent_expenses,
+        "low_stock_items": low_stock_items,
+        "vaccination_alerts": vaccination_alerts,
+        "mortality_alerts": mortality_alerts,
+    }, language=response_language)
+
+    payload = {
         "total_birds": current_user.current_bird_count,
         "feed_stock": feed_stock,
         "medicine_stock": medicine_stock,
@@ -118,4 +172,12 @@ async def get_dashboard(
         "revenue_trend": revenue_trend_data,
         "feed_consumption_trend": feed_trend,
         "inventory_trend": inventory_trend,
+        "pending_bills": pending_bills,
+        "recent_expenses": recent_expenses,
+        "low_stock_items": low_stock_items,
+        "vaccination_alerts": vaccination_alerts,
+        "mortality_alerts": mortality_alerts,
+        "ai_summary": ai_summary,
     }
+    cache.set(f"dashboard:{current_user.id}:{response_language}", payload)
+    return payload

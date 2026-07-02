@@ -1,10 +1,8 @@
 from datetime import date
 from pydantic import BaseModel
 
-from app.models.inventory import InventoryItem, InventoryCategory, StockMovement
-from app.models.finance import Transaction, TransactionType, ExpenseCategory
-
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi.responses import FileResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -13,13 +11,16 @@ from app.core.database import get_db
 from app.core.deps import get_current_user
 from app.models.document import Document, DocumentType
 from app.models.finance import Transaction, TransactionType, ExpenseCategory, RevenueCategory, SuggestedTransaction
+from app.models.inventory import InventoryItem, InventoryCategory, StockMovement
 from app.models.user import User
 from app.schemas.document import DocumentClarification, DocumentResponse
+from app.services.background_jobs import BackgroundJobRunner
 from app.services.ocr_service import process_document_ocr
 
 router = APIRouter(prefix="/documents", tags=["Document Management"])
 
 CONFIDENCE_THRESHOLD = 0.90
+job_runner = BackgroundJobRunner()
 
 
 def _infer_document_type(raw_text: str, filename: str) -> DocumentType:
@@ -55,80 +56,111 @@ async def upload_document(
     with open(file_path, "wb") as f:
         f.write(content)
 
-    ocr_result = await process_document_ocr(file_path)
-
-    if document_type is None:
-        document_type = _infer_document_type(ocr_result.get("raw_text", ""), file.filename or "")
-
-    confidence = ocr_result.get("confidence", 0)
-    needs_clarification = confidence < CONFIDENCE_THRESHOLD
-
     doc = Document(
         user_id=current_user.id,
-        document_type=document_type,
+        document_type=document_type or DocumentType.PURCHASE_RECEIPT,
         file_path=file_path,
         original_filename=file.filename or "unknown",
-        company_name=ocr_result.get("company_name"),
-        product_name=ocr_result.get("product_name"),
-        quantity=ocr_result.get("quantity"),
-        number_of_bags=ocr_result.get("number_of_bags"),
-        cost=ocr_result.get("cost"),
-        invoice_date=ocr_result.get("invoice_date"),
-        invoice_number=ocr_result.get("invoice_number"),
-        supplier_name=ocr_result.get("supplier_name"),
-        ocr_confidence=confidence,
-        needs_clarification=needs_clarification,
-        raw_ocr_text=ocr_result.get("raw_text"),
     )
     db.add(doc)
     await db.flush()
     await db.refresh(doc)
-    # If OCR parsed key fields and confidence is high, create a suggested transaction (for review)
+
+    async def process_ocr_callback(result):
+        if result.get("company_name"):
+            doc.company_name = result["company_name"]
+        if result.get("product_name"):
+            doc.product_name = result["product_name"]
+        if result.get("quantity"):
+            doc.quantity = result["quantity"]
+        if result.get("number_of_bags"):
+            doc.number_of_bags = result["number_of_bags"]
+        if result.get("cost"):
+            doc.cost = result["cost"]
+        if result.get("invoice_date"):
+            doc.invoice_date = result["invoice_date"]
+        if result.get("invoice_number"):
+            doc.invoice_number = result["invoice_number"]
+        if result.get("supplier_name"):
+            doc.supplier_name = result["supplier_name"]
+        doc.ocr_confidence = result.get("confidence", 0)
+        doc.needs_clarification = result.get("needs_review", False)
+        doc.raw_ocr_text = result.get("raw_text", "")
+        await db.flush()
+
+    job_runner.run(process_document_ocr(file_path))
+    job_runner.run(process_ocr_callback(await process_document_ocr(file_path)))
+
+    if document_type is None:
+        ocr_result = await process_document_ocr(file_path)
+        document_type = _infer_document_type(ocr_result.get("raw_text", ""), file.filename or "")
+        if document_type != doc.document_type:
+            doc.document_type = document_type
+            await db.flush()
+
+    ocr_result = await process_document_ocr(file_path)
+    confidence = ocr_result.get("confidence", 0)
+    if ocr_result.get("company_name"):
+        doc.company_name = ocr_result["company_name"]
+    if ocr_result.get("product_name"):
+        doc.product_name = ocr_result["product_name"]
+    if ocr_result.get("quantity"):
+        doc.quantity = ocr_result["quantity"]
+    if ocr_result.get("number_of_bags"):
+        doc.number_of_bags = ocr_result["number_of_bags"]
+    if ocr_result.get("cost"):
+        doc.cost = ocr_result["cost"]
+    if ocr_result.get("invoice_date"):
+        doc.invoice_date = ocr_result["invoice_date"]
+    if ocr_result.get("invoice_number"):
+        doc.invoice_number = ocr_result["invoice_number"]
+    if ocr_result.get("supplier_name"):
+        doc.supplier_name = ocr_result["supplier_name"]
+    doc.ocr_confidence = confidence
+    doc.needs_clarification = confidence < CONFIDENCE_THRESHOLD
+    doc.raw_ocr_text = ocr_result.get("raw_text", "")
+    await db.flush()
+
     try:
-        from datetime import date as _date
-        if doc.ocr_confidence and doc.ocr_confidence >= CONFIDENCE_THRESHOLD and doc.cost:
-            tx_date = doc.invoice_date or _date.today()
-            if document_type in (DocumentType.FEED_BILL, DocumentType.PURCHASE_RECEIPT):
-                st = SuggestedTransaction(
-                    user_id=current_user.id,
-                    document_id=doc.id,
-                    transaction_type=TransactionType.EXPENSE,
-                    expense_category=ExpenseCategory.FEED if document_type == DocumentType.FEED_BILL else ExpenseCategory.MISCELLANEOUS,
-                    amount=doc.cost,
-                    description=f"Parsed from {doc.original_filename}",
-                    transaction_date=tx_date,
-                )
-                db.add(st)
-                await db.flush()
-            elif document_type == DocumentType.MEDICINE_BILL:
-                st = SuggestedTransaction(
-                    user_id=current_user.id,
-                    document_id=doc.id,
-                    transaction_type=TransactionType.EXPENSE,
-                    expense_category=ExpenseCategory.MEDICINES,
-                    amount=doc.cost,
-                    description=f"Parsed from {doc.original_filename}",
-                    transaction_date=tx_date,
-                )
-                db.add(st)
-                await db.flush()
-            elif document_type == DocumentType.SALES_INVOICE:
-                rc = RevenueCategory.BIRD_SALES
-                if doc.product_name and 'egg' in (doc.product_name or '').lower():
-                    rc = RevenueCategory.EGG_SALES
-                st = SuggestedTransaction(
-                    user_id=current_user.id,
-                    document_id=doc.id,
-                    transaction_type=TransactionType.REVENUE,
-                    revenue_category=rc,
-                    amount=doc.cost,
-                    description=f"Parsed from {doc.original_filename}",
-                    transaction_date=tx_date,
-                )
-                db.add(st)
-                await db.flush()
+        tx_date = doc.invoice_date or date.today()
+        if document_type in (DocumentType.FEED_BILL, DocumentType.PURCHASE_RECEIPT) and doc.cost:
+            st = SuggestedTransaction(
+                user_id=current_user.id,
+                document_id=doc.id,
+                transaction_type=TransactionType.EXPENSE,
+                expense_category=ExpenseCategory.FEED if document_type == DocumentType.FEED_BILL else ExpenseCategory.MISCELLANEOUS,
+                amount=doc.cost,
+                description=f"Parsed from {doc.original_filename}",
+                transaction_date=tx_date,
+            )
+            db.add(st)
+        elif document_type == DocumentType.MEDICINE_BILL and doc.cost:
+            st = SuggestedTransaction(
+                user_id=current_user.id,
+                document_id=doc.id,
+                transaction_type=TransactionType.EXPENSE,
+                expense_category=ExpenseCategory.MEDICINES,
+                amount=doc.cost,
+                description=f"Parsed from {doc.original_filename}",
+                transaction_date=tx_date,
+            )
+            db.add(st)
+        elif document_type == DocumentType.SALES_INVOICE and doc.cost:
+            rc = RevenueCategory.BIRD_SALES
+            if doc.product_name and 'egg' in (doc.product_name or '').lower():
+                rc = RevenueCategory.EGG_SALES
+            st = SuggestedTransaction(
+                user_id=current_user.id,
+                document_id=doc.id,
+                transaction_type=TransactionType.REVENUE,
+                revenue_category=rc,
+                amount=doc.cost,
+                description=f"Parsed from {doc.original_filename}",
+                transaction_date=tx_date,
+            )
+            db.add(st)
+        await db.flush()
     except Exception:
-        # Do not block document upload if suggestion creation fails
         pass
 
     return doc
@@ -155,10 +187,8 @@ async def process_document(
 
     response: dict = {}
 
-    # Add to inventory
     if payload.add_inventory:
         qty = doc.quantity or doc.number_of_bags or 1
-        # determine category
         if doc.document_type == DocumentType.VACCINE_BILL:
             cat = InventoryCategory.VACCINE
         elif doc.document_type == DocumentType.MEDICINE_BILL:
@@ -196,9 +226,14 @@ async def process_document(
         movement = StockMovement(item_id=item.id, change_amount=float(qty), reason="Added from document upload", notes=f"Document ID {doc.id}")
         db.add(movement)
         await db.flush()
-        response["inventory"] = {"item_id": item.id, "quantity": item.quantity}
+        response["inventory"] = {
+            "item_id": item.id,
+            "product_name": item.product_name,
+            "category": item.category.value,
+            "quantity": item.quantity,
+            "unit": item.unit,
+        }
 
-    # Add to finance
     if payload.add_finance and doc.cost:
         if doc.document_type == DocumentType.VACCINE_BILL:
             exp_cat = ExpenseCategory.VACCINES
@@ -220,9 +255,18 @@ async def process_document(
         )
         db.add(tx)
         await db.flush()
-        response["finance"] = {"transaction_id": tx.id, "amount": tx.amount}
+        response["finance"] = {
+            "transaction_id": tx.id,
+            "amount": tx.amount,
+            "category": exp_cat.value,
+        }
 
     await db.flush()
+    response["document"] = {
+        "id": doc.id,
+        "filename": doc.original_filename,
+        "document_type": doc.document_type.value,
+    }
     return response
 
 
@@ -296,8 +340,6 @@ async def download_document(
     db: AsyncSession = Depends(get_db),
 ):
     import os
-
-    from fastapi.responses import FileResponse
 
     result = await db.execute(
         select(Document).where(Document.id == doc_id, Document.user_id == current_user.id)

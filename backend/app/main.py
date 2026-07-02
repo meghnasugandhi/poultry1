@@ -8,11 +8,13 @@ from fastapi.staticfiles import StaticFiles
 from app.api import api_router
 from app.core.config import settings
 from app.core.database import Base, engine
+from app.core.logging import configure_logging
 from app.models import *  # noqa: F401, F403 — register all models
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    configure_logging()
     os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
     os.makedirs("reports", exist_ok=True)
     async with engine.begin() as conn:
